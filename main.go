@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"os/user"
+	"strconv"
 	"strings"
 	"unicode"
 
@@ -15,8 +16,9 @@ import (
 )
 
 type CloudConfig struct {
-	Groups []string          `yaml:"groups"`
-	Users  []CloudConfigUser `yaml:"users"`
+	Groups     []string          `yaml:"groups"`
+	Users      []CloudConfigUser `yaml:"users"`
+	WriteFiles []CloudConfigFile `yaml:"write_files"`
 }
 
 type CloudConfigUser struct {
@@ -35,6 +37,12 @@ type CloudConfigUser struct {
 	Shell             string   `yaml:"shell"`
 	System            bool     `yaml:"system"`
 	Sudo              string   `yaml:"sudo"`
+}
+
+type CloudConfigFile struct {
+	Path        string `yaml:"path"`
+	Permissions string `yaml:"permissions"`
+	Content     string `yaml:"content"`
 }
 
 type MetaData struct {
@@ -175,6 +183,27 @@ func processUserData(configDriveDir string) error {
 		}
 	}
 
+	//write files
+	for _, file := range cc.WriteFiles {
+		perm, err := file.OSPermissions()
+		if err != nil {
+			log.Printf("Invalid file permissions for %s: %s", file.Path, file.Permissions)
+		}
+
+		f, err := os.OpenFile(file.Path, os.O_CREATE|os.O_WRONLY, perm)
+		if err != nil {
+			log.Printf("Error creating file: %s", err)
+		}
+		defer f.Close()
+
+		n, err := f.WriteString(file.Content)
+		if err != nil {
+			log.Printf("Error writing file %s: %s", file.Path, err)
+		} else {
+			log.Printf("Wrote file %s successfully with %d lines.", file.Path, n)
+		}
+	}
+
 	return nil
 }
 
@@ -300,4 +329,18 @@ func userExists(u string) bool {
 func groupExists(g string) bool {
 	_, err := user.LookupGroup(g)
 	return err == nil
+}
+
+// Convert file permissions mode from String
+func (f *CloudConfigFile) OSPermissions() (os.FileMode, error) {
+	if f.Permissions == "" {
+		return os.FileMode(0644), nil
+	}
+
+	// Parse string representation of file mode as integer
+	perm, err := strconv.ParseInt(f.Permissions, 8, 32)
+	if err != nil {
+		return 0, fmt.Errorf("Unable to parse file permissions %q as integer", f.Permissions)
+	}
+	return os.FileMode(perm), nil
 }
