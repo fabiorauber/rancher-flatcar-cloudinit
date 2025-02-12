@@ -11,6 +11,9 @@ import (
 	"strconv"
 	"strings"
 	"unicode"
+	"bytes"
+	"compress/gzip"
+	"encoding/base64"
 
 	"gopkg.in/yaml.v3"
 )
@@ -43,6 +46,7 @@ type CloudConfigFile struct {
 	Path        string `yaml:"path"`
 	Permissions string `yaml:"permissions"`
 	Content     string `yaml:"content"`
+	Encoding    string `yaml:"encoding"`
 }
 
 type MetaData struct {
@@ -196,7 +200,8 @@ func processUserData(configDriveDir string) error {
 		}
 		defer f.Close()
 
-		n, err := f.WriteString(file.Content)
+		decodedContent, err := DecodeContent(file.Content, file.Encoding) 
+		n, err := f.Write(decodedContent)
 		if err != nil {
 			log.Printf("Error writing file %s: %s", file.Path, err)
 		} else {
@@ -343,4 +348,53 @@ func (f *CloudConfigFile) OSPermissions() (os.FileMode, error) {
 		return 0, fmt.Errorf("Unable to parse file permissions %q as integer", f.Permissions)
 	}
 	return os.FileMode(perm), nil
+}
+
+// Decoding functions
+func DecodeBase64Content(content string) ([]byte, error) {
+	output, err := base64.StdEncoding.DecodeString(content)
+
+	if err != nil {
+		return nil, fmt.Errorf("Unable to decode base64: %q", err)
+	}
+
+	return output, nil
+}
+
+func DecodeGzipContent(content string) ([]byte, error) {
+	gzr, err := gzip.NewReader(bytes.NewReader([]byte(content)))
+
+	if err != nil {
+		return nil, fmt.Errorf("Unable to decode gzip: %q", err)
+	}
+	defer gzr.Close()
+
+	buf := new(bytes.Buffer)
+	buf.ReadFrom(gzr)
+
+	return buf.Bytes(), nil
+}
+
+func DecodeContent(content string, encoding string) ([]byte, error) {
+	switch encoding {
+	case "":
+		return []byte(content), nil
+
+	case "b64", "base64":
+		return DecodeBase64Content(content)
+
+	case "gz", "gzip":
+		return DecodeGzipContent(content)
+
+	case "gz+base64", "gzip+base64", "gz+b64", "gzip+b64":
+		gz, err := DecodeBase64Content(content)
+
+		if err != nil {
+			return nil, err
+		}
+
+		return DecodeGzipContent(string(gz))
+	}
+
+	return nil, fmt.Errorf("Unsupported encoding %q", encoding)
 }
