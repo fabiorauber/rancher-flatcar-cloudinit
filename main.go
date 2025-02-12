@@ -22,6 +22,7 @@ type CloudConfig struct {
 	Groups     []string          `yaml:"groups"`
 	Users      []CloudConfigUser `yaml:"users"`
 	WriteFiles []CloudConfigFile `yaml:"write_files"`
+	RunCmd     []string          `yaml:"runcmd"`
 }
 
 type CloudConfigUser struct {
@@ -206,6 +207,17 @@ func processUserData(configDriveDir string) error {
 			log.Printf("Error writing file %s: %s", file.Path, err)
 		} else {
 			log.Printf("Wrote file %s successfully with %d lines.", file.Path, n)
+		}
+	}
+
+    // Run commands
+	for _, cmd := range cc.RunCmd {
+		cmdArgs := strings.Fields(cmd)
+		output, err := exec.Command(cmdArgs[0], cmdArgs[1:]...).CombinedOutput()
+		if err != nil {
+			log.Printf("Error running command '%s': %s\n%s", cmd, err, output)
+		} else {
+			log.Printf("Ran command '%s' successfully.\n%s ", cmd, output)
 		}
 	}
 
