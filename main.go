@@ -206,7 +206,7 @@ func processUserData(configDriveDir string) error {
 		if err != nil {
 			log.Printf("Error writing file %s: %s", file.Path, err)
 		} else {
-			log.Printf("Wrote file %s successfully with %d lines.", file.Path, n)
+			log.Printf("Wrote file %s successfully with %d bytes.", file.Path, n)
 		}
 	}
 
