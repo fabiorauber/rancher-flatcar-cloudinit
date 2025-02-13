@@ -14,7 +14,7 @@ users:
 write_files:
 - content: H4sIAAAAAAAAA1JW1E/KzNNPSizO4EpNzshX8CxRCM8vyi5WBAAAAP//AwCxMIRMGgAAAA==
   encoding: gzip+b64
-  path: /home/fabior/install.sh
+  path: /home/docker/install.sh
   permissions: "0644"
 runcmd:
 - "/usr/bin/echo It works!"
