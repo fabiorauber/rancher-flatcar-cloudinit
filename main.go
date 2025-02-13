@@ -1,6 +1,9 @@
 package main
 
 import (
+	"bytes"
+	"compress/gzip"
+	"encoding/base64"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -11,9 +14,6 @@ import (
 	"strconv"
 	"strings"
 	"unicode"
-	"bytes"
-	"compress/gzip"
-	"encoding/base64"
 
 	"gopkg.in/yaml.v3"
 )
@@ -201,7 +201,10 @@ func processUserData(configDriveDir string) error {
 		}
 		defer f.Close()
 
-		decodedContent, err := DecodeContent(file.Content, file.Encoding) 
+		decodedContent, err := DecodeContent(file.Content, file.Encoding)
+		if err != nil {
+			log.Printf("Error decoding permissions for file %s: %s", file.Path, err)
+		}
 		n, err := f.Write(decodedContent)
 		if err != nil {
 			log.Printf("Error writing file %s: %s", file.Path, err)
@@ -210,7 +213,7 @@ func processUserData(configDriveDir string) error {
 		}
 	}
 
-    // Run commands
+	// Run commands
 	for _, cmd := range cc.RunCmd {
 		cmdArgs := strings.Fields(cmd)
 		output, err := exec.Command(cmdArgs[0], cmdArgs[1:]...).CombinedOutput()
@@ -357,17 +360,18 @@ func (f *CloudConfigFile) OSPermissions() (os.FileMode, error) {
 	// Parse string representation of file mode as integer
 	perm, err := strconv.ParseInt(f.Permissions, 8, 32)
 	if err != nil {
-		return 0, fmt.Errorf("Unable to parse file permissions %q as integer", f.Permissions)
+		return 0, fmt.Errorf("unable to parse file permissions %q as integer", f.Permissions)
 	}
 	return os.FileMode(perm), nil
 }
 
 // Decoding functions
+// copied from github.com/flatcar-linux/coreos-cloudinit
 func DecodeBase64Content(content string) ([]byte, error) {
 	output, err := base64.StdEncoding.DecodeString(content)
 
 	if err != nil {
-		return nil, fmt.Errorf("Unable to decode base64: %q", err)
+		return nil, fmt.Errorf("unable to decode base64: %q", err)
 	}
 
 	return output, nil
@@ -377,7 +381,7 @@ func DecodeGzipContent(content string) ([]byte, error) {
 	gzr, err := gzip.NewReader(bytes.NewReader([]byte(content)))
 
 	if err != nil {
-		return nil, fmt.Errorf("Unable to decode gzip: %q", err)
+		return nil, fmt.Errorf("unable to decode gzip: %q", err)
 	}
 	defer gzr.Close()
 
@@ -408,5 +412,5 @@ func DecodeContent(content string, encoding string) ([]byte, error) {
 		return DecodeGzipContent(string(gz))
 	}
 
-	return nil, fmt.Errorf("Unsupported encoding %q", encoding)
+	return nil, fmt.Errorf("unsupported encoding %q", encoding)
 }
