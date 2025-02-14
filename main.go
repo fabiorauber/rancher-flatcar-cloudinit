@@ -14,7 +14,7 @@ import (
 	"strconv"
 	"strings"
 	"unicode"
-
+	"path/filepath"
 	"gopkg.in/yaml.v3"
 )
 
@@ -190,11 +190,21 @@ func processUserData(configDriveDir string) error {
 
 	//write files
 	for _, file := range cc.WriteFiles {
+        // Replace "/usr/local" with "/opt" in Path, since Flatcar has read-only /usr
+        file.Path = strings.Replace(file.Path, "/usr/local", "/opt", -1)
+
+		// Create directory if it does not exist
+		dir := filepath.Dir(file.Path)
+		err := os.MkdirAll(dir, 0755)
+		if err != nil {
+			log.Printf("Error creating directory %s: %s", dir, err)
+		}
+
 		perm, err := file.OSPermissions()
 		if err != nil {
 			log.Printf("Invalid file permissions for %s: %s", file.Path, file.Permissions)
 		}
-
+    
 		f, err := os.OpenFile(file.Path, os.O_CREATE|os.O_WRONLY, perm)
 		if err != nil {
 			log.Printf("Error creating file: %s", err)
@@ -216,6 +226,7 @@ func processUserData(configDriveDir string) error {
 	// Run commands
 	for _, cmd := range cc.RunCmd {
 		cmdArgs := strings.Fields(cmd)
+		cmdArgs[0] = strings.Replace(cmdArgs[0], "/usr/local/custom_script", "/opt/custom_script", -1)
 		output, err := exec.Command(cmdArgs[0], cmdArgs[1:]...).CombinedOutput()
 		if err != nil {
 			log.Printf("Error running command '%s': %s\n%s", cmd, err, output)
